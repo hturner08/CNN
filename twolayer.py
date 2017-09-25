@@ -2,18 +2,20 @@ import numpy as np
 import tensorflow as tf
 import random
 
+#Herbert Turner's Multilayer Neural Network
+
 #Creating Test data
-W = [np.random.randint(low = 10,size=(1,10))]  #[10,10]
-OW = [np.random.randint(low=10,size=(10,1))]
+W = [np.random.randint(low = 2^62,size=(1,10))]  #[10,10]
 def test_data(batch_size):
     X_Data = []
     Y_Data = []
     for x in range(batch_size):
-        Array = np.random.randint(low=10,size=(10,1)) #[10,1]
+        Array = np.random.randint(low=2^62,size=(10,1)) #[10,1]
         X_Data.append(Array)
         Array2 = np.dot(Array,W)
-        Array3 = np.dot(Array2,OW)
+        Array3 = np.dot(Array2,np.add(np.asarray(W).reshape(10,1),np.random.randint(low=2^62,size=(10,1)))) #[1,10]
         Y_Data.append(Array3) #[10,1]
+    # print(Y_Data,X_Data)
     X_Data = np.asarray(X_Data)
     Y_Data = np.asarray(Y_Data)
     X_Data = np.reshape(X_Data,(batch_size*10,1))
@@ -40,16 +42,17 @@ train_step = tf.train.GradientDescentOptimizer(learning_rate=rate).minimize(cost
 sess = tf.InteractiveSession()
 tf.global_variables_initializer().run()
 #Training Model
-X_Data, Y_Data = test_data(1000)
-sess.run(train_step, feed_dict={X : X_Data, y : Y_Data})
-#Testing Model
 X_Data, Y_Data = test_data(100)
+testing = sess.run(train_step, feed_dict={X : X_Data, y : Y_Data})
+
+#Testing Model
+X_Data, Y_Data = test_data(10)
 y_prob = sess.run(y, feed_dict = {X : X_Data,y: Y_Data})
 correct_pred = 0
-for i in range(100):
-    if (np.absolute(Y_Data[i,0] - y_prob[i,0]) < .001):
+for i in range(10):
+    if (np.absolute(Y_Data[i,0] - y_prob[i,0]) < (2^62)/100):
         print(Y_Data[i,0])
         print(y_prob[i,0])
         correct_pred += 1
 
-print(correct_pred/100)
+print(correct_pred/10)

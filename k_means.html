@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>K-means Clustering Visualization</title>
+        <script src="https://d3js.org/d3.v4.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.3/underscore.js"></script>
+        <style>
+            #container {
+                margin: 0 auto;
+            }
+            h1 {
+                text-align: center;
+            }
+            * {
+                font-family: sans-serif;
+            }
+            input[type="text"] {
+                width: 50px;
+            }
+            #formDiv {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                margin: 0px;
+            }
+            #insideFormContainer {
+                display: flex;
+                flex-direction: row;
+                align-items: stretch;
+                justify-content: space-around;
+            }
+            button {
+                height: 100%;
+                width: 60px;
+                margin-left: 10px;
+                border-radius: 5px;
+                background-color: lightgray;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>K-means Clustering Visualization</h1>
+        <div id="container">
+            
+        </div>
+        <div id=formDiv>
+            <form>
+                <div id="insideFormContainer">
+                    <div id="inputFields">
+                        <label for="numClasses">Number of classes </label><input id="numClasses" type="text" name="numClasses" value="3" /><br/>
+
+                        <label for="stdDev">Standard deviation of class distributions </label><input id="stdDev" type="text" name="stdDev" value="1.0" /><br/>
+
+                        <label for="numPoints">Number of points to sample </label><input id="numPoints" type="text" name="numPoints" value="100" /><br/>
+                    </div>
+                    <div id="updateButtonCol">
+                        <button id="updateButton" type="button">Update</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </body>
+    <script>
+        function rnorm(mean=0, stddev=1) {
+            var n = 20;
+            var total = 0;
+            for (var i = 0; i < n; i++) {
+               total += Math.random(); 
+            }
+            total -= (n/2);
+            total /= (Math.sqrt(n/12));
+            return total * stddev + mean;
+        }
+        
+        function variance(x) {
+            var n = x.length;
+            var total = 0;
+            var mu = mean(x);
+            for (var i = 0; i < x.length; i++) {
+                total += Math.pow((x[i] - mu),2)
+            }
+            total /= n;
+            return total;
+        }
+            
+        function mean(x) {
+            var total = 0;
+            for (var i = 0; i < x.length; i++) {
+                total += x[i];
+            }
+            total /= x.length;
+            return total;
+        }
+        
+        function mean2d(X) {
+            var total = [];
+            if (X.length == 0) {
+                console.log("ZERO ARRAY ERROR");
+            }
+            for (var i = 0; i < X[0].length; i++) {
+                total.push(0);
+            }
+            
+            for (var i = 0; i < X.length; i++) {
+                for (var j = 0; j < X[i].length; j++) {
+                    total[j] += X[i][j]
+                }
+            }
+            
+            for (var i = 0; i < total.length; i++) {
+                total[i] /= X.length;
+            }
+            
+            return total;
+        }
+        
+//        var toyData = [[1,0],[2,3],[0,-1],[-3,2]];
+//        console.log(_.sample(toyData,2));
+//        console.log(mean2d(toyData));
+        
+//        var normTest = [];
+//        for (var i = 0; i < 1000; i++) {
+//            normTest.push(rnorm(0,2));
+//        }
+//        
+//        var variance = variance(normTest);
+//        var mean = mean(normTest);
+//        console.log("Variance: " + variance);
+//        console.log("Mean: " + mean);
+        function getRandomCenters(centers=3,centerBox=[[-10,10],[-10,10]]) {
+            var centerLocations = []
+            for (var i = 0; i < centers; i++) {
+                var x1 = Math.random() * (centerBox[0][1]-centerBox[0][0]) + centerBox[0][0];
+                var x2 = Math.random() * (centerBox[1][1]-centerBox[1][0]) + centerBox[1][0];
+                
+                centerLocations.push([x1,x2]);
+            }
+            return centerLocations;
+        }
+        
+        function makeBlobs(nSamples=100, centers=3, clusterStd=1.0, shuffle=true, centerBox=[[-10,10],[-10,10]]) {
+            var out = [];
+            
+            var X = [];
+            var y = [];
+            
+            var nSamplesPerCenter = [];
+            var init = Math.floor(nSamples/centers);
+            for (var i = 0; i < centers; i++) {
+                nSamplesPerCenter.push(init);
+            }
+            for (var i = 0; i < nSamples%centers; i++) {
+                nSamplesPerCenter[i] += 1;
+            }
+            
+            //console.log(nSamplesPerCenter);
+            
+            var centerLocations = getRandomCenters(centers,centerBox);
+            
+            for (var i = 0; i < centers; i++) {
+                for (var j = 0; j < nSamplesPerCenter[i]; j++) {
+                    var x1 = centerLocations[i][0] + rnorm(0,clusterStd);
+                    var x2 = centerLocations[i][1] + rnorm(0,clusterStd);
+                    var nextPt = {"X": [x1,x2], "y": i};
+                    out.push(nextPt);
+                }
+            }
+            
+            if (shuffle) {
+                out = _.shuffle(out);
+            }
+            return out;
+        }
+        
+        var numClasses = parseInt(document.getElementById("numClasses").value);
+        var stdDev = parseFloat(document.getElementById("stdDev").value);
+        var numPoints = parseInt(document.getElementById("numPoints").value);
+        
+        document.getElementById("updateButton").addEventListener("click", updatePlot);
+        
+        const width = 850,
+              height = 550,
+              margin = {
+                  top: 40,
+                  bottom: 80,
+                  left: 80,
+                  right: 40,
+              },
+              ptMovingTime = 1000,
+              betweenIterDelay = 2000,
+              ptSize = 5,
+              ctrSize = 10,
+              ptOpacity = 0.5,
+              ptCols = ["red","green","blue","yellow","black","lightblue","purple"],
+              popupCol = "black";
+        
+        var svg = d3.select("#container").append("svg")
+                .attr("width", width)
+                .attr("height", height)
+                .style("margin", "0 auto")
+                .style("display", "block")
+                .style("overflow", "visible");
+        
+        var data = makeBlobs(numPoints,numClasses,stdDev);
+        //console.log(data);
+    
+        var x = d3.scaleLinear()
+            .domain(d3.extent(data, function(d) {return d["X"][0];}))
+            .range([margin.left, width-margin.right]);
+        
+        //console.log(d3.extent(data, function(d) {return d["X"][0];}));
+        
+        var y = d3.scaleLinear()
+            .domain(d3.extent(data, function(d) {return d["X"][1];}))
+            .range([height-margin.bottom, margin.top]);
+        
+        function plotData() {
+            var circles = svg.selectAll("circle.datapt")
+                .data(data);
+            
+            circles.enter()
+                .append("circle")
+                .attr("class", "datapt")
+                .attr("cx", function(d) {return x(d["X"][0]);})
+                .attr("cy", function(d) {return y(d["X"][1]);})
+                .attr("r", ptSize)
+                .attr("fill", function(d) {return ptCols[d["y"]]})
+                .attr("fill-opacity", ptOpacity);
+        }
+        
+        function plotCenters(centerLocations) {
+            var circles = svg.selectAll("circle.center")
+                .data(centerLocations);
+            
+            circles.transition()
+                .duration(ptMovingTime)
+                .attr("cx", function(d) {return x(d[0]);})
+                .attr("cy", function(d) {return y(d[1]);});
+            
+            circles.enter()
+                .append("circle")
+                .attr("class", "center")
+                .attr("cx", function(d) {return x(d[0]);})
+                .attr("cy", function(d) {return y(d[1]);})
+                .attr("r", ctrSize)
+                .attr("fill", "black");
+        }
+        
+        svg.append("text")
+            .attr("id", "iterCount")
+            .attr("x", 0)
+            .attr("y", 0)
+            .text("Iteration: 0");
+        
+        function setIterationCount(count) {
+            var txtLabel = svg.select("#iterCount");
+            //console.log("SETTING" + count);
+            txtLabel.text("Iteration: " + count);
+        }
+        
+        plotData();
+        
+        function distance(p1,p2) {
+            total = 0;
+            for (var i = 0; i < p1.length; i++) {
+                total += Math.pow((p1[i]-p2[i]),2);
+            }
+            return Math.sqrt(total);
+        }
+        
+        function getClosestCenterIndex(point, centerLocations) {
+            var minDist = distance(point,centerLocations[0]);
+            var minInd = 0;
+            for (var i = 1; i < centerLocations.length; i++) {
+                var currDist = distance(point,centerLocations[i]);
+                if (currDist < minDist) {
+                    minDist = currDist;
+                    minInd = i;
+                }
+            }
+            return minInd;
+        }
+        
+        function doKMeansIteration(iteration, dataset, nClusters, centerLocations, numIterations=10) {
+            var ptsClosestToCenters = [];
+            for (var i = 0; i < nClusters; i++) {
+                ptsClosestToCenters.push([]);
+            }
+            for (var i = 0; i < dataset.length; i++) {
+                var closestCenterIndex = getClosestCenterIndex(dataset[i]["X"],centerLocations);
+                ptsClosestToCenters[closestCenterIndex].push(dataset[i]["X"]);
+            }
+
+            for (var i = 0; i < nClusters; i++) {
+                centerLocations[i] = mean2d(ptsClosestToCenters[i]);
+            }
+
+            //console.log("REVISED");
+            //console.log(centerLocations);
+
+            plotCenters(centerLocations);
+            setIterationCount(iteration);
+            
+            if (iteration == numIterations) {
+                return;
+            }
+            
+            setTimeout(function() {doKMeansIteration(iteration+1,dataset,nClusters,centerLocations,numIterations);}, betweenIterDelay);
+        }
+        
+        function doKMeans(dataset, nClusters, numIterations=10) {
+            var centers = _.sample(dataset,nClusters);
+            var centerLocations = [];
+            for (var i = 0; i < nClusters; i++) {
+                centerLocations.push(centers[i]["X"]);
+            }
+            
+            plotCenters(centerLocations);
+            
+            doKMeansIteration(1,dataset,nClusters,centerLocations,numIterations);
+        }
+        
+        doKMeans(data,numClasses);
+        
+        function updatePlot() {
+            console.log("UPDATING");
+            
+            numClasses = parseInt(document.getElementById("numClasses").value);
+            stdDev = parseFloat(document.getElementById("stdDev").value);
+            numPoints = parseInt(document.getElementById("numPoints").value);
+            
+            data = makeBlobs(numPoints,numClasses,stdDev);
+            
+            var circles = svg.selectAll("circle.datapt")
+                .data([])
+                .exit()
+                .remove();
+            
+            svg.selectAll("circle.center")
+                .data([])
+                .exit()
+                .remove();
+            
+            x = d3.scaleLinear()
+                .domain(d3.extent(data, function(d) {return d["X"][0];}))
+                .range([margin.left, width-margin.right]);
+
+            //console.log(d3.extent(data, function(d) {return d["X"][0];}));
+
+            y = d3.scaleLinear()
+                .domain(d3.extent(data, function(d) {return d["X"][1];}))
+                .range([height-margin.bottom, margin.top]);
+            
+            plotData();
+            doKMeans(data,numClasses);
+        }
+    </script>
+</html>

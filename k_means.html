@@ -177,7 +177,18 @@
         var stdDev = parseFloat(document.getElementById("stdDev").value);
         var numPoints = parseInt(document.getElementById("numPoints").value);
         
-        document.getElementById("updateButton").addEventListener("click", updatePlot);
+        var currentlyRunning = true;
+        var updatePressed = false;
+        
+        document.getElementById("updateButton").addEventListener("click", function() {
+            console.log("BUTTON PRESSED! updatePressed: " + updatePressed + " currentlyRunning: " + currentlyRunning);
+            updatePressed = true;
+            if (!currentlyRunning) {
+                updatePlot();
+            } else {
+                return;
+            }
+        });
         
         const width = 850,
               height = 550,
@@ -282,7 +293,25 @@
             return minInd;
         }
         
-        function doKMeansIteration(iteration, dataset, nClusters, centerLocations, numIterations=10) {
+        function noChangeInCenters(oldCenterLocations, newCenterLocations, threshold=1e-9) {
+            for (var i = 0; i < oldCenterLocations.length; i++) {
+                var currDist = distance(oldCenterLocations[i],newCenterLocations[i]);
+                if (currDist > threshold) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        function doKMeansIteration(iteration, dataset, nClusters, centerLocations) {
+            console.log("doKMeansIteration: " +nClusters);
+//            console.log("UPDATEPRESSED " + updatePressed);
+            if (updatePressed) {
+                console.log("BREAKING OUT OF OLD ALGORITHM");
+                updatePressed = false;
+                updatePlot();
+                return;
+            }
             var ptsClosestToCenters = [];
             for (var i = 0; i < nClusters; i++) {
                 ptsClosestToCenters.push([]);
@@ -291,25 +320,30 @@
                 var closestCenterIndex = getClosestCenterIndex(dataset[i]["X"],centerLocations);
                 ptsClosestToCenters[closestCenterIndex].push(dataset[i]["X"]);
             }
-
+            
+            var newCenterLocations = [];
             for (var i = 0; i < nClusters; i++) {
-                centerLocations[i] = mean2d(ptsClosestToCenters[i]);
+                newCenterLocations.push(mean2d(ptsClosestToCenters[i]));
             }
 
             //console.log("REVISED");
             //console.log(centerLocations);
 
-            plotCenters(centerLocations);
+            plotCenters(newCenterLocations);
             setIterationCount(iteration);
             
-            if (iteration == numIterations) {
+            if (noChangeInCenters(centerLocations, newCenterLocations)) {
+                currentlyRunning = false;
                 return;
             }
             
-            setTimeout(function() {doKMeansIteration(iteration+1,dataset,nClusters,centerLocations,numIterations);}, betweenIterDelay);
+            setTimeout(function() {doKMeansIteration(iteration+1,dataset,nClusters,newCenterLocations);}, betweenIterDelay);
         }
         
         function doKMeans(dataset, nClusters, numIterations=10) {
+            console.log("doKMEANS: "+ nClusters);
+            currentlyRunning = true;
+//            console.log(currentlyRunning);
             var centers = _.sample(dataset,nClusters);
             var centerLocations = [];
             for (var i = 0; i < nClusters; i++) {
@@ -318,13 +352,15 @@
             
             plotCenters(centerLocations);
             
-            doKMeansIteration(1,dataset,nClusters,centerLocations,numIterations);
+            doKMeansIteration(1,dataset,nClusters,centerLocations);
+            console.log("doKMEANS is setting currentlyRUNNING to false!");
         }
         
         doKMeans(data,numClasses);
         
         function updatePlot() {
-            console.log("UPDATING");
+            console.log("UPDATEPLOT");
+//            console.log("UPDATING");
             
             numClasses = parseInt(document.getElementById("numClasses").value);
             stdDev = parseFloat(document.getElementById("stdDev").value);

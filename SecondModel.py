@@ -7,6 +7,7 @@ import timeit
 import math
 import os
 import json
+from imblearn.over_sampling import SMOTE
 
 class FirstModel:
     def __init__(self, inp_w, inp_h, inp_d,training, keep_prob = 0.5,):
@@ -192,6 +193,10 @@ def benign(directory,length):
     #X_train1 = downsample(read(r"C:\Users\user\Documents\HackNEHS2017\Hacknehs2017\Datasets\\"))
 X_train = resized(read(r"C:\Users\cwessner\Documents\IP\ISIC-images\ISIC_UDA-1_1\\"))
 y_train = benign(r"C:\Users\cwessner\Documents\IP\ISIC-images\ISIC_UDA-1_1\\",len(X_train))
+
+# Oversampling the minority class using the SMOTE algorithm:
+sm = SMOTE(kind = 'regular')
+X_train_resampled, y_train_resampled = sm.fit_sample(X_train, y_train)
 covmodel = FirstModel(400,400,3,True)
 print('Training')
 covmodel.train(X_train,y_train)
